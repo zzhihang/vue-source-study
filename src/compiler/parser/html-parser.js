@@ -69,15 +69,19 @@ export function parseHTML (html, options) {
           const commentEnd = html.indexOf('-->')
 
           if (commentEnd >= 0) {
-            if (options.shouldKeepComment) {
+            // 若存在 '-->',继续判断options中是否保留注释
+            if (options.shouldKeepComment) {//在模板中可以在<template></template>标签上配置comments选项来决定在渲染模板时是否保留注释，对应到上面代码中就是options.shouldKeepComment
+              // 若保留注释，则把注释截取出来传给options.comment，创建注释类型的AST节点
               options.comment(html.substring(4, commentEnd), index, index + commentEnd + 3)
             }
+            // 若不保留注释，则将游标移动到'-->'之后，继续向后解析
             advance(commentEnd + 3)
             continue
           }
         }
 
         // http://en.wikipedia.org/wiki/Conditional_comment#Downlevel-revealed_conditional_comment
+        //条件注释不存在于真正的DOM树中，不需要调用钩子函数创建AST节点
         if (conditionalComment.test(html)) {
           const conditionalEnd = html.indexOf(']>')
 
@@ -194,12 +198,21 @@ export function parseHTML (html, options) {
       }
       advance(start[0].length)
       let end, attr
+      //如果剩下的字符串不符合开始标签的结束特征（startTagClose）并且符合标签属性的特征的话，那就说明还有未提取出的标签属性，那就进入循环，继续提取，直到把所有标签属性都提取完毕。
       while (!(end = html.match(startTagClose)) && (attr = html.match(dynamicArgAttribute) || html.match(attribute))) {
         attr.start = index
         advance(attr[0].length)
         attr.end = index
         match.attrs.push(attr)
       }
+      /**
+       * 这里判断了该标签是否为自闭合标签
+       * 自闭合标签如:<input type='text' />
+       * 非自闭合标签如:<div></div>
+       * '></div>'.match(startTagClose) => [">", "", index: 0, input: "></div>", groups: undefined]
+       * '/><div></div>'.match(startTagClose) => ["/>", "/", index: 0, input: "/><div></div>", groups: undefined]
+       * 因此，我们可以通过end[1]是否是"/"来判断该标签是否是自闭合标签
+       */
       if (end) {
         match.unarySlash = end[1]
         advance(end[0].length)
